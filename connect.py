@@ -65,33 +65,62 @@ def decode_status_packet(data, file_handle):
                 offset += 1
                 version_patch = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
-                reserved_00 = struct.unpack('<B', packet[offset:offset+1])[0]
+                
+                # unit_serial - char[64]
+                unit_serial = packet[offset:offset+64].decode('utf-8', errors='ignore').rstrip('\x00')
+                offset += 64
+                
+                # system_health_status - uint8_t
+                system_health_status = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
                 
-                radar_id = struct.unpack('<I', packet[offset:offset+4])[0]
+                # system_mode - char[64]
+                system_mode = packet[offset:offset+64].decode('utf-8', errors='ignore').rstrip('\x00')
+                offset += 64
+                
+                # fault_reason - char[128]
+                fault_reason = packet[offset:offset+128].decode('utf-8', errors='ignore').rstrip('\x00')
+                offset += 128
+                
+                # transmitter_output_power_control - uint32_t
+                transmitter_output_power_control = struct.unpack('<I', packet[offset:offset+4])[0]
                 offset += 4
                 
-                # Status-specific fields
-                packet_type = struct.unpack('<H', packet[offset:offset+2])[0]
-                offset += 2
+                # radar_uptime - uint32_t
+                radar_uptime = struct.unpack('<I', packet[offset:offset+4])[0]
+                offset += 4
                 
-                radar_state = struct.unpack('<B', packet[offset:offset+1])[0]
-                offset += 1
+                # net_state_1g - uint32_t
+                net_state_1g = struct.unpack('<I', packet[offset:offset+4])[0]
+                offset += 4
                 
-                reserved_01 = packet[offset:offset+1].hex()
-                offset += 1
+                # link_status_10g - uint32_t
+                link_status_10g = struct.unpack('<I', packet[offset:offset+4])[0]
+                offset += 4
                 
-                system_time = struct.unpack('<Q', packet[offset:offset+8])[0]
+                # system_time - int64_t
+                system_time = struct.unpack('<q', packet[offset:offset+8])[0]
                 offset += 8
                 
-                uptime = struct.unpack('<Q', packet[offset:offset+8])[0]
-                offset += 8
-                
-                cpu_temperature = struct.unpack('<f', packet[offset:offset+4])[0]
+                # active_time_source - uint32_t
+                active_time_source = struct.unpack('<I', packet[offset:offset+4])[0]
                 offset += 4
                 
-                fpga_temperature = struct.unpack('<f', packet[offset:offset+4])[0]
+                # available_time_sources - uint32_t
+                available_time_sources = struct.unpack('<I', packet[offset:offset+4])[0]
                 offset += 4
+                
+                # search_scan_rate - float
+                search_scan_rate = struct.unpack('<f', packet[offset:offset+4])[0]
+                offset += 4
+                
+                # kinematics_sensor_agreement - uint32_t
+                kinematics_sensor_agreement = struct.unpack('<I', packet[offset:offset+4])[0]
+                offset += 4
+                
+                # reserved_00 - uint8_t[1008]
+                reserved_00 = packet[offset:offset+1008].hex()
+                offset += 1008
                 
                 # Print status fields
                 log_print(f"\n{'='*80}", console=True, file_handle=file_handle)
@@ -100,15 +129,21 @@ def decode_status_packet(data, file_handle):
                 log_print(f"packet_sync: <status>", console=True, file_handle=file_handle)
                 log_print(f"n_bytes: {n_bytes}", console=True, file_handle=file_handle)
                 log_print(f"version: {version_major}.{version_minor}.{version_patch}", console=True, file_handle=file_handle)
-                log_print(f"reserved_00: 0x{reserved_00:02X}", console=True, file_handle=file_handle)
-                log_print(f"radar_id: {radar_id}", console=True, file_handle=file_handle)
-                log_print(f"packet_type: {packet_type}", console=True, file_handle=file_handle)
-                log_print(f"radar_state: {radar_state}", console=True, file_handle=file_handle)
-                log_print(f"reserved_01: 0x{reserved_01}", console=True, file_handle=file_handle)
+                log_print(f"unit_serial: {unit_serial}", console=True, file_handle=file_handle)
+                log_print(f"system_health_status: {system_health_status}", console=True, file_handle=file_handle)
+                log_print(f"system_mode: {system_mode}", console=True, file_handle=file_handle)
+                log_print(f"fault_reason: {fault_reason}", console=True, file_handle=file_handle)
+                log_print(f"transmitter_output_power_control: {transmitter_output_power_control}", console=True, file_handle=file_handle)
+                log_print(f"radar_uptime: {radar_uptime} ms", console=True, file_handle=file_handle)
+                log_print(f"net_state_1g: {net_state_1g}", console=True, file_handle=file_handle)
+                log_print(f"link_status_10g: {link_status_10g}", console=True, file_handle=file_handle)
                 log_print(f"system_time: {system_time}", console=True, file_handle=file_handle)
-                log_print(f"uptime: {uptime} ms", console=True, file_handle=file_handle)
-                log_print(f"cpu_temperature: {cpu_temperature:.2f} °C", console=True, file_handle=file_handle)
-                log_print(f"fpga_temperature: {fpga_temperature:.2f} °C", console=True, file_handle=file_handle)
+                log_print(f"active_time_source: {active_time_source}", console=True, file_handle=file_handle)
+                log_print(f"available_time_sources: {available_time_sources}", console=True, file_handle=file_handle)
+                log_print(f"search_scan_rate: {search_scan_rate:.4f}", console=True, file_handle=file_handle)
+                log_print(f"kinematics_sensor_agreement: {kinematics_sensor_agreement}", console=True, file_handle=file_handle)
+                log_print(f"reserved_00: 0x{reserved_00[:40]}{'...' if len(reserved_00) > 40 else ''}", console=True, file_handle=file_handle)
+                
                 log_print(f"{'='*80}\n", console=True, file_handle=file_handle)
                 
     except Exception as e:
@@ -153,264 +188,264 @@ def decode_track_packet(data, file_handle=None):
                 packet_sync = b'<tracks>'  # Already consumed
                 
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 n_bytes = struct.unpack('<I', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 version_major = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 version_minor = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 version_patch = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 reserved_00 = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 radar_id = struct.unpack('<I', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 # Track message header fields
                 packet_type = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 state = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 # reserved_01 = struct.unpack('<6B', packet[offset:offset+6])[0]
                 reserved_01 = packet[offset:offset+6].hex()
                 offset += 6
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 lifetime = struct.unpack('<I', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 confidence_level = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 informed_track_update_count = struct.unpack('<I', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 # reserved_02 = struct.unpack('<8B', packet[offset:offset+8])[0]
                 reserved_02 = packet[offset:offset+8].hex()
                 offset += 8
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 track_id = struct.unpack('<Q', packet[offset:offset+8])[0]
                 offset += 8
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 # UUIDs (16 bytes each)
                 track_UUID = packet[offset:offset+16].hex()
                 offset += 16
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 handoff_UUID = packet[offset:offset+16].hex()
                 offset += 16
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 track_merge_UUID = packet[offset:offset+16].hex()
                 offset += 16
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 # Position and velocity estimates (3 floats each = 12 bytes)
                 xyz_pos_est = struct.unpack('<fff', packet[offset:offset+12])
                 offset += 12
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 xyz_vel_est = struct.unpack('<fff', packet[offset:offset+12])
                 offset += 12
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 ecef_pos_est = struct.unpack('<ddd', packet[offset:offset+24])
                 offset += 24
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 ecef_vel_est = struct.unpack('<fff', packet[offset:offset+12])
                 offset += 12
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 enu_pos_est = struct.unpack('<fff', packet[offset:offset+12])
                 offset += 12
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 enu_vel_est = struct.unpack('<fff', packet[offset:offset+12])
                 offset += 12
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 # RCS estimates
                 rcs_est = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 rcs_est_std = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 # Track metadata
                 track_formation_source = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 track_cause_of_death = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 track_is_focused = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 reserved_03 = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 # Timestamps (assuming uint64 - 8 bytes each)
                 last_update_time = struct.unpack('<Q', packet[offset:offset+8])[0]
                 offset += 8
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 last_assoc_time = struct.unpack('<Q', packet[offset:offset+8])[0]
                 offset += 8
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 acquired_time = struct.unpack('<Q', packet[offset:offset+8])[0]
                 offset += 8
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 # AGL and probabilities
                 agl_est = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 prob_aircraft = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 prob_bird = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 prob_clutter = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 prob_human = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 prob_uav_fixedwing = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 prob_uav_multirotor = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 prob_vehicle = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 # reserved_04 = struct.unpack('<I', packet[offset:offset+4])[0]
                 reserved_04 = packet[offset:offset+32].hex()
                 offset += 32
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 # ECEF state covariance (36 floats = 144 bytes for 6x6 matrix)
                 ecef_state_covariance = []
@@ -418,15 +453,15 @@ def decode_track_packet(data, file_handle=None):
                     ecef_state_covariance.append(struct.unpack('<f', packet[offset:offset+4])[0])
                     offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 # reserved_05 = struct.unpack('<I', packet[offset:offset+4])[0]
                 reserved_05 = packet[offset:offset+132].hex()
                 offset += 132
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                field_count += 1
+                # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                # field_count += 1
                 
                 # Check if extended data exists
                 if (offset < n_bytes):
@@ -434,41 +469,41 @@ def decode_track_packet(data, file_handle=None):
                     n_outstanding_track_beams = struct.unpack('<B', packet[offset:offset+1])[0]
                     offset += 1
                     
-                    log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                    field_count += 1
+                    # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                    # field_count += 1
                     
                     n_outstanding_clf_beams = struct.unpack('<B', packet[offset:offset+1])[0]
                     offset += 1
                     
-                    log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                    field_count += 1
+                    # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                    # field_count += 1
                     
                     n_assoc_meas_ids = struct.unpack('<B', packet[offset:offset+1])[0]
                     offset += 1
                     
-                    log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                    field_count += 1
+                    # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                    # field_count += 1
                     
                     n_assoc_cookie_ids = struct.unpack('<B', packet[offset:offset+1])[0]
                     offset += 1
                     
-                    log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                    field_count += 1
+                    # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                    # field_count += 1
                     
                     # Association statistics
                     assoc_meas_mean_adjusted_rcs = struct.unpack('<f', packet[offset:offset+4])[0]
                     offset += 4
                     
-                    log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                    field_count += 1
+                    # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                    # field_count += 1
                     
                     assoc_meas_chi2 = []
                     for i in range(6):
                         assoc_meas_chi2.append(struct.unpack('<f', packet[offset:offset+4])[0])
                         offset += 4
                     
-                    log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                    field_count += 1
+                    # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                    # field_count += 1
                     
                     # Variable length arrays - read based on counts
                     assoc_meas_ids = []
@@ -476,51 +511,51 @@ def decode_track_packet(data, file_handle=None):
                         assoc_meas_ids.append(struct.unpack('<Q', packet[offset:offset+8])[0])
                         offset += 8
                     
-                    log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                    field_count += 1
+                    # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                    # field_count += 1
                     
                     outstanding_clf_beams_ids = []
                     for i in range(2):
                         outstanding_clf_beams_ids.append(struct.unpack('<Q', packet[offset:offset+8])[0])
                         offset += 8
                     
-                    log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                    field_count += 1
+                    # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                    # field_count += 1
                     
                     last_clf_beam_time = struct.unpack('<Q', packet[offset:offset+8])[0]
                     offset += 8
                     
-                    log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                    field_count += 1
+                    # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                    # field_count += 1
                     
                     outstanding_track_beams_ids = []
                     for i in range(4):
                         outstanding_track_beams_ids.append(struct.unpack('<Q', packet[offset:offset+8])[0])
                         offset += 8
                     
-                    log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                    field_count += 1
+                    # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                    # field_count += 1
                     
                     last_track_beam_time = struct.unpack('<q', packet[offset:offset+8])[0]
                     offset += 8 
                     
-                    log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                    field_count += 1
+                    # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                    # field_count += 1
                     
                     assoc_cookie_ids = []
                     for i in range(2):
                         assoc_cookie_ids.append(struct.unpack('<Q', packet[offset:offset+8])[0])
                         offset += 8
                     
-                    log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                    field_count += 1
+                    # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                    # field_count += 1
                     
                     # Reserved field at end
                     reserved_06 = packet[offset:offset+64].hex()
                     offset += 64
                     
-                    log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
-                    field_count += 1
+                    # log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
+                    # field_count += 1
                 
                 # Print all fields
                 log_print(f"\n{'='*80}", console=True, file_handle=file_handle)
@@ -565,9 +600,10 @@ def decode_track_packet(data, file_handle=None):
                 log_print(f"prob_uav_fixedwing: {prob_uav_fixedwing:.4f}", console=True, file_handle=file_handle)
                 log_print(f"prob_uav_multirotor: {prob_uav_multirotor:.4f}", console=True, file_handle=file_handle)
                 log_print(f"prob_vehicle: {prob_vehicle:.4f}", console=True, file_handle=file_handle)
-                log_print(f"reserved_04: 0x{reserved_04:08X}", console=True, file_handle=file_handle)
+                log_print(f"reserved_04: 0x{reserved_04}", console=True, file_handle=file_handle)
+
                 log_print(f"ecef_state_covariance: [6x6 matrix with {len(ecef_state_covariance)} elements]", console=True, file_handle=file_handle)
-                log_print(f"reserved_05: 0x{reserved_05:08X}", console=True, file_handle=file_handle)
+                log_print(f"reserved_05: 0x{reserved_05}", console=True, file_handle=file_handle)
                 
                 if (offset < n_bytes):
                     log_print(f"n_outstanding_track_beams: {n_outstanding_track_beams}", console=True, file_handle=file_handle)
@@ -618,7 +654,7 @@ def connect_and_receive():
             log_print("="*60 + "\n", console=True, file_handle=track_log_file)
             
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(1.0)  # 1 second timeout for interruptibility
+            sock.settimeout(30.0)  # 30 second timeout
             sock.connect((HOST, TRACK_PORT))
             
             log_print("Track connection successful!", console=True, file_handle=track_log_file)
@@ -684,7 +720,7 @@ def connect_and_receive():
             log_print("="*60 + "\n", console=True, file_handle=status_log_file)
             
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(1.0)  # 1 second timeout for interruptibility
+            sock.settimeout(30.0)  # 30 second timeout
             sock.connect((HOST, STATUS_PORT))
             
             log_print("Status connection successful!", console=True, file_handle=status_log_file)
