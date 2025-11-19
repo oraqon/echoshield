@@ -708,12 +708,106 @@ def decode_track_packet(data, file_handle=None):
     
     return True
 
+def get_radar_mode():
+    """Query the radar mode using get_radar_mode command"""
+    global command_id, command_log_file
+    
+    try:
+        import json
+        
+        # Open command log file if not already open
+        if command_log_file is None:
+            command_log_file = open(command_log_filename, 'w', encoding='utf-8')
+            log_print(f"Command Log - Started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", console=False, file_handle=command_log_file)
+            log_print("="*60 + "\n", console=False, file_handle=command_log_file)
+        
+        # Create get_radar_mode command
+        command = {
+            "method": "get_radar_mode",
+            "id": command_id
+        }
+        command_id += 1
+        
+        command_json = json.dumps(command)
+        command_bytes = command_json.encode('utf-8')
+        
+        # Log command being sent
+        log_print(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]", console=False, file_handle=command_log_file)
+        log_print(f"Querying radar mode: {command_json}", console=False, file_handle=command_log_file)
+        
+        # Connect and send command
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(5.0)
+        sock.connect((HOST, COMMAND_PORT))
+        
+        sock.sendall(command_bytes)
+        
+        # Wait for response
+        try:
+            response = sock.recv(1024)
+            if response:
+                response_str = response.decode('utf-8', errors='ignore')
+                log_print(f"Mode query response: {response_str}", console=False, file_handle=command_log_file)
+                
+                # Try to parse JSON response
+                try:
+                    response_json = json.loads(response_str)
+                    mode = response_json.get('result', {}).get('mode', '')
+                    log_print(f"Current radar mode: {mode}", console=False, file_handle=command_log_file)
+                    sock.close()
+                    return mode
+                except:
+                    pass
+        except socket.timeout:
+            log_print("Mode query timeout", console=False, file_handle=command_log_file)
+        
+        sock.close()
+        return None
+        
+    except Exception as e:
+        log_print(f"Error querying radar mode: {e}", console=False, file_handle=command_log_file)
+        return None
+
 def connect_and_receive():
     global track_log_file, status_log_file
     
-    # Send startup command to power on the radar
-    print("Sending startup command to power on radar...")
-    send_command("mode_set_start")
+    # Check radar mode and send startup command if needed
+    print("Checking radar mode...")
+    import time
+    
+    max_attempts = 30
+    attempt = 0
+    radar_active = False
+    
+    while attempt < max_attempts and not radar_active:
+        attempt += 1
+        
+        # Query current radar mode
+        current_mode = get_radar_mode()
+        
+        if current_mode:
+            print(f"Attempt {attempt}: Current radar mode: {current_mode}")
+            
+            if "ACTIVE" in current_mode:
+                print("Radar is already ACTIVE!")
+                radar_active = True
+                break
+            elif "IDLE" in current_mode:
+                print("Radar is IDLE, sending mode_set_start command...")
+                send_command("mode_set_start")
+                time.sleep(2)
+            else:
+                print(f"Radar is in mode '{current_mode}', waiting...")
+                time.sleep(2)
+        else:
+            print(f"Attempt {attempt}: Could not determine radar mode, sending mode_set_start command...")
+            send_command("mode_set_start")
+            time.sleep(2)
+    
+    if not radar_active:
+        print(f"Warning: Radar did not become ACTIVE after {max_attempts} attempts")
+        print("Continuing anyway...")
+    
     print()
     
     def receive_track_data():
