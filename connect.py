@@ -10,6 +10,10 @@ import sys
 HOST = '162.33.236.188'
 TRACK_PORT = 29982
 STATUS_PORT = 29979
+COMMAND_PORT = 29978
+
+# Command message ID counter
+command_id = 1
 
 # Ensure logs directory exists
 os.makedirs('logs', exist_ok=True)
@@ -18,8 +22,10 @@ os.makedirs('logs', exist_ok=True)
 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 track_log_filename = f"logs/track_data_{timestamp}.log"
 status_log_filename = f"logs/status_data_{timestamp}.log"
+command_log_filename = f"logs/command_data_{timestamp}.log"
 track_log_file = None
 status_log_file = None
+command_log_file = None
 
 # Debug mode - set to True to see raw hex data
 DEBUG_MODE = False
@@ -38,6 +44,69 @@ def log_print(message, console=True, file_handle=None):
     if file_handle:
         file_handle.write(message + '\n')
         file_handle.flush()
+
+def send_command(command_method):
+    """Send a JSON command to the radar via the command port"""
+    global command_id, command_log_file
+    
+    try:
+        import json
+        
+        # Open command log file if not already open
+        if command_log_file is None:
+            command_log_file = open(command_log_filename, 'w', encoding='utf-8')
+            log_print(f"Command Log - Started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", console=False, file_handle=command_log_file)
+            log_print("="*60 + "\n", console=False, file_handle=command_log_file)
+        
+        # Create command message
+        command = {
+            "method": command_method,
+            "id": command_id
+        }
+        command_id += 1
+        
+        # Convert to JSON string and encode
+        command_json = json.dumps(command)
+        command_bytes = command_json.encode('utf-8')
+        
+        # Log command being sent
+        log_print(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]", console=True, file_handle=command_log_file)
+        log_print(f"Sending command: {command_json}", console=True, file_handle=command_log_file)
+        
+        # Connect and send command
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(5.0)
+        sock.connect((HOST, COMMAND_PORT))
+        
+        sock.sendall(command_bytes)
+        log_print(f"Command sent to {HOST}:{COMMAND_PORT}", console=True, file_handle=command_log_file)
+        
+        # Wait for response
+        try:
+            response = sock.recv(1024)
+            if response:
+                response_str = response.decode('utf-8', errors='ignore')
+                log_print(f"Command response: {response_str}", console=True, file_handle=command_log_file)
+                
+                # Try to parse as JSON for pretty logging
+                try:
+                    response_json = json.loads(response_str)
+                    log_print(f"Parsed response: {json.dumps(response_json, indent=2)}", console=True, file_handle=command_log_file)
+                except:
+                    pass
+            else:
+                log_print("No response received (empty)", console=True, file_handle=command_log_file)
+        except socket.timeout:
+            log_print("No response received (timeout)", console=True, file_handle=command_log_file)
+        
+        log_print("-"*60, console=False, file_handle=command_log_file)
+        
+        sock.close()
+        return True
+        
+    except Exception as e:
+        log_print(f"Error sending command: {e}", console=True, file_handle=command_log_file)
+        return False
 
 def decode_status_packet(data, file_handle):
     """
@@ -641,6 +710,11 @@ def decode_track_packet(data, file_handle=None):
 
 def connect_and_receive():
     global track_log_file, status_log_file
+    
+    # Send startup command to power on the radar
+    print("Sending startup command to power on radar...")
+    send_command("mode_set_start")
+    print()
     
     def receive_track_data():
         """Thread function to receive track packets"""
