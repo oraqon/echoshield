@@ -2,34 +2,122 @@ import socket
 import struct
 from datetime import datetime
 import os
+import threading
+import signal
+import sys
 
 # Connection parameters
 HOST = '162.33.236.188'
-PORT = 29982
+TRACK_PORT = 29982
+STATUS_PORT = 29979
 
 # Ensure logs directory exists
 os.makedirs('logs', exist_ok=True)
 
-# Create log file with timestamp
-log_filename = f"logs/track_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-log_file = None
+# Create log files with timestamp
+timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+track_log_filename = f"logs/track_data_{timestamp}.log"
+status_log_filename = f"logs/status_data_{timestamp}.log"
+track_log_file = None
+status_log_file = None
 
 # Debug mode - set to True to see raw hex data
 DEBUG_MODE = False
 
 # Global packet counter
 packet_count = 0
-MAX_PACKETS = 50
+MAX_PACKETS = 500000
 
-def log_print(message, console=True, file=True):
+# Shutdown flag
+shutdown_flag = threading.Event()
+
+def log_print(message, console=True, file_handle=None):
     """Print to console and/or log file"""
     if console:
         print(message)
-    if file and log_file:
-        log_file.write(message + '\n')
-        log_file.flush()
+    if file_handle:
+        file_handle.write(message + '\n')
+        file_handle.flush()
 
-def decode_track_packet(data):
+def decode_status_packet(data, file_handle):
+    """
+    Decode Gen3 Status Packet format based on Table 213 in specification
+    """
+    try:
+        # Look for status packet delimiter
+        if b'<status>' in data:
+            packets = data.split(b'<status>')
+            
+            for packet in packets[1:]:
+                if len(packet) < 20:
+                    continue
+                
+                offset = 0
+                
+                # Packet header
+                packet_sync = b'<status>'
+                n_bytes = struct.unpack('<I', packet[offset:offset+4])[0]
+                offset += 4
+                
+                version_major = struct.unpack('<B', packet[offset:offset+1])[0]
+                offset += 1
+                version_minor = struct.unpack('<B', packet[offset:offset+1])[0]
+                offset += 1
+                version_patch = struct.unpack('<B', packet[offset:offset+1])[0]
+                offset += 1
+                reserved_00 = struct.unpack('<B', packet[offset:offset+1])[0]
+                offset += 1
+                
+                radar_id = struct.unpack('<I', packet[offset:offset+4])[0]
+                offset += 4
+                
+                # Status-specific fields
+                packet_type = struct.unpack('<H', packet[offset:offset+2])[0]
+                offset += 2
+                
+                radar_state = struct.unpack('<B', packet[offset:offset+1])[0]
+                offset += 1
+                
+                reserved_01 = packet[offset:offset+1].hex()
+                offset += 1
+                
+                system_time = struct.unpack('<Q', packet[offset:offset+8])[0]
+                offset += 8
+                
+                uptime = struct.unpack('<Q', packet[offset:offset+8])[0]
+                offset += 8
+                
+                cpu_temperature = struct.unpack('<f', packet[offset:offset+4])[0]
+                offset += 4
+                
+                fpga_temperature = struct.unpack('<f', packet[offset:offset+4])[0]
+                offset += 4
+                
+                # Print status fields
+                log_print(f"\n{'='*80}", console=True, file_handle=file_handle)
+                log_print(f"STATUS PACKET", console=True, file_handle=file_handle)
+                log_print(f"{'='*80}", console=True, file_handle=file_handle)
+                log_print(f"packet_sync: <status>", console=True, file_handle=file_handle)
+                log_print(f"n_bytes: {n_bytes}", console=True, file_handle=file_handle)
+                log_print(f"version: {version_major}.{version_minor}.{version_patch}", console=True, file_handle=file_handle)
+                log_print(f"reserved_00: 0x{reserved_00:02X}", console=True, file_handle=file_handle)
+                log_print(f"radar_id: {radar_id}", console=True, file_handle=file_handle)
+                log_print(f"packet_type: {packet_type}", console=True, file_handle=file_handle)
+                log_print(f"radar_state: {radar_state}", console=True, file_handle=file_handle)
+                log_print(f"reserved_01: 0x{reserved_01}", console=True, file_handle=file_handle)
+                log_print(f"system_time: {system_time}", console=True, file_handle=file_handle)
+                log_print(f"uptime: {uptime} ms", console=True, file_handle=file_handle)
+                log_print(f"cpu_temperature: {cpu_temperature:.2f} °C", console=True, file_handle=file_handle)
+                log_print(f"fpga_temperature: {fpga_temperature:.2f} °C", console=True, file_handle=file_handle)
+                log_print(f"{'='*80}\n", console=True, file_handle=file_handle)
+                
+    except Exception as e:
+        log_print(f"Error decoding status packet: {e}", console=True, file_handle=file_handle)
+        import traceback
+        log_print(traceback.format_exc(), console=True, file_handle=file_handle)
+        log_print(f"Raw data (first 256 bytes): {data[:256].hex()}", console=True, file_handle=file_handle)
+
+def decode_track_packet(data, file_handle=None):
     """
     Decode Gen3 Track Packet format based on specification page 203
     Returns True if should continue, False if limit reached
@@ -52,9 +140,9 @@ def decode_track_packet(data):
                 
                 # Show raw header bytes in debug mode
                 if DEBUG_MODE:
-                    log_print(f"\n[DEBUG] Raw packet header (first 64 bytes):")
-                    log_print(f"[DEBUG] {packet[:64].hex()}")
-                    log_print(f"[DEBUG] Packet length: {len(packet)} bytes\n")
+                    log_print(f"\n[DEBUG] Raw packet header (first 64 bytes):", console=True, file_handle=file_handle)
+                    log_print(f"[DEBUG] {packet[:64].hex()}", console=True, file_handle=file_handle)
+                    log_print(f"[DEBUG] Packet length: {len(packet)} bytes\n", console=True, file_handle=file_handle)
                     
                 # Parse header according to spec
                 offset = 0
@@ -65,263 +153,263 @@ def decode_track_packet(data):
                 packet_sync = b'<tracks>'  # Already consumed
                 
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 n_bytes = struct.unpack('<I', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 version_major = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 version_minor = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 version_patch = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 reserved_00 = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 radar_id = struct.unpack('<I', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 # Track message header fields
                 packet_type = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 state = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 # reserved_01 = struct.unpack('<6B', packet[offset:offset+6])[0]
                 reserved_01 = packet[offset:offset+6].hex()
                 offset += 6
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 lifetime = struct.unpack('<I', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 confidence_level = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 informed_track_update_count = struct.unpack('<I', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 # reserved_02 = struct.unpack('<8B', packet[offset:offset+8])[0]
                 reserved_02 = packet[offset:offset+8].hex()
                 offset += 8
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 track_id = struct.unpack('<Q', packet[offset:offset+8])[0]
                 offset += 8
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 # UUIDs (16 bytes each)
                 track_UUID = packet[offset:offset+16].hex()
                 offset += 16
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 handoff_UUID = packet[offset:offset+16].hex()
                 offset += 16
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 track_merge_UUID = packet[offset:offset+16].hex()
                 offset += 16
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 # Position and velocity estimates (3 floats each = 12 bytes)
                 xyz_pos_est = struct.unpack('<fff', packet[offset:offset+12])
                 offset += 12
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 xyz_vel_est = struct.unpack('<fff', packet[offset:offset+12])
                 offset += 12
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 ecef_pos_est = struct.unpack('<ddd', packet[offset:offset+24])
                 offset += 24
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 ecef_vel_est = struct.unpack('<fff', packet[offset:offset+12])
                 offset += 12
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 enu_pos_est = struct.unpack('<fff', packet[offset:offset+12])
                 offset += 12
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 enu_vel_est = struct.unpack('<fff', packet[offset:offset+12])
                 offset += 12
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 # RCS estimates
                 rcs_est = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 rcs_est_std = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 # Track metadata
                 track_formation_source = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 track_cause_of_death = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 track_is_focused = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 reserved_03 = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 # Timestamps (assuming uint64 - 8 bytes each)
                 last_update_time = struct.unpack('<Q', packet[offset:offset+8])[0]
                 offset += 8
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 last_assoc_time = struct.unpack('<Q', packet[offset:offset+8])[0]
                 offset += 8
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 acquired_time = struct.unpack('<Q', packet[offset:offset+8])[0]
                 offset += 8
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 # AGL and probabilities
                 agl_est = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 prob_aircraft = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 prob_bird = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 prob_clutter = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 prob_human = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 prob_uav_fixedwing = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 prob_uav_multirotor = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 prob_vehicle = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 # reserved_04 = struct.unpack('<I', packet[offset:offset+4])[0]
                 reserved_04 = packet[offset:offset+32].hex()
                 offset += 32
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 # ECEF state covariance (36 floats = 144 bytes for 6x6 matrix)
@@ -330,14 +418,14 @@ def decode_track_packet(data):
                     ecef_state_covariance.append(struct.unpack('<f', packet[offset:offset+4])[0])
                     offset += 4
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 # reserved_05 = struct.unpack('<I', packet[offset:offset+4])[0]
                 reserved_05 = packet[offset:offset+132].hex()
                 offset += 132
                 
-                log_print(f"number: {field_count}, offset: {offset + 8}")
+                log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                 field_count += 1
                 
                 # Check if extended data exists
@@ -346,32 +434,32 @@ def decode_track_packet(data):
                     n_outstanding_track_beams = struct.unpack('<B', packet[offset:offset+1])[0]
                     offset += 1
                     
-                    log_print(f"number: {field_count}, offset: {offset + 8}")
+                    log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                     field_count += 1
                     
                     n_outstanding_clf_beams = struct.unpack('<B', packet[offset:offset+1])[0]
                     offset += 1
                     
-                    log_print(f"number: {field_count}, offset: {offset + 8}")
+                    log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                     field_count += 1
                     
                     n_assoc_meas_ids = struct.unpack('<B', packet[offset:offset+1])[0]
                     offset += 1
                     
-                    log_print(f"number: {field_count}, offset: {offset + 8}")
+                    log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                     field_count += 1
                     
                     n_assoc_cookie_ids = struct.unpack('<B', packet[offset:offset+1])[0]
                     offset += 1
                     
-                    log_print(f"number: {field_count}, offset: {offset + 8}")
+                    log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                     field_count += 1
                     
                     # Association statistics
                     assoc_meas_mean_adjusted_rcs = struct.unpack('<f', packet[offset:offset+4])[0]
                     offset += 4
                     
-                    log_print(f"number: {field_count}, offset: {offset + 8}")
+                    log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                     field_count += 1
                     
                     assoc_meas_chi2 = []
@@ -379,7 +467,7 @@ def decode_track_packet(data):
                         assoc_meas_chi2.append(struct.unpack('<f', packet[offset:offset+4])[0])
                         offset += 4
                     
-                    log_print(f"number: {field_count}, offset: {offset + 8}")
+                    log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                     field_count += 1
                     
                     # Variable length arrays - read based on counts
@@ -388,7 +476,7 @@ def decode_track_packet(data):
                         assoc_meas_ids.append(struct.unpack('<Q', packet[offset:offset+8])[0])
                         offset += 8
                     
-                    log_print(f"number: {field_count}, offset: {offset + 8}")
+                    log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                     field_count += 1
                     
                     outstanding_clf_beams_ids = []
@@ -396,13 +484,13 @@ def decode_track_packet(data):
                         outstanding_clf_beams_ids.append(struct.unpack('<Q', packet[offset:offset+8])[0])
                         offset += 8
                     
-                    log_print(f"number: {field_count}, offset: {offset + 8}")
+                    log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                     field_count += 1
                     
                     last_clf_beam_time = struct.unpack('<Q', packet[offset:offset+8])[0]
                     offset += 8
                     
-                    log_print(f"number: {field_count}, offset: {offset + 8}")
+                    log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                     field_count += 1
                     
                     outstanding_track_beams_ids = []
@@ -410,13 +498,13 @@ def decode_track_packet(data):
                         outstanding_track_beams_ids.append(struct.unpack('<Q', packet[offset:offset+8])[0])
                         offset += 8
                     
-                    log_print(f"number: {field_count}, offset: {offset + 8}")
+                    log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                     field_count += 1
                     
                     last_track_beam_time = struct.unpack('<q', packet[offset:offset+8])[0]
                     offset += 8 
                     
-                    log_print(f"number: {field_count}, offset: {offset + 8}")
+                    log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                     field_count += 1
                     
                     assoc_cookie_ids = []
@@ -424,155 +512,252 @@ def decode_track_packet(data):
                         assoc_cookie_ids.append(struct.unpack('<Q', packet[offset:offset+8])[0])
                         offset += 8
                     
-                    log_print(f"number: {field_count}, offset: {offset + 8}")
+                    log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                     field_count += 1
                     
                     # Reserved field at end
                     reserved_06 = packet[offset:offset+64].hex()
                     offset += 64
                     
-                    log_print(f"number: {field_count}, offset: {offset + 8}")
+                    log_print(f"number: {field_count}, offset: {offset + 8}", console=True, file_handle=file_handle)
                     field_count += 1
                 
                 # Print all fields
-                log_print(f"\n{'='*80}")
-                log_print(f"TRACK PACKET #{packet_count}")
-                log_print(f"{'='*80}")
-                log_print(f"packet_sync: <tracks>")
-                log_print(f"n_bytes: {n_bytes}")
-                log_print(f"version: {version_major}.{version_minor}.{version_patch}")
-                log_print(f"reserved_00: 0x{reserved_00:02X}")
-                log_print(f"radar_id: {radar_id}")
-                log_print(f"packet_type: {packet_type}")
-                log_print(f"state: {state}")
-                log_print(f"reserved_01: 0x{reserved_01}")
-                log_print(f"lifetime: {lifetime}")
-                log_print(f"confidence_level: {confidence_level:.4f}")
-                log_print(f"informed_track_update_count: {informed_track_update_count}")
-                log_print(f"reserved_02: 0x{reserved_02}")
-                log_print(f"id: {track_id}")
-                log_print(f"track_UUID: {track_UUID}")
-                log_print(f"handoff_UUID: {handoff_UUID}")
-                log_print(f"track_merge_UUID: {track_merge_UUID}")
-                log_print(f"xyz_pos_est: [{xyz_pos_est[0]:.3f}, {xyz_pos_est[1]:.3f}, {xyz_pos_est[2]:.3f}] m")
-                log_print(f"xyz_vel_est: [{xyz_vel_est[0]:.3f}, {xyz_vel_est[1]:.3f}, {xyz_vel_est[2]:.3f}] m/s")
-                log_print(f"ecef_pos_est: [{ecef_pos_est[0]:.3f}, {ecef_pos_est[1]:.3f}, {ecef_pos_est[2]:.3f}] m")
-                log_print(f"ecef_vel_est: [{ecef_vel_est[0]:.3f}, {ecef_vel_est[1]:.3f}, {ecef_vel_est[2]:.3f}] m/s")
-                log_print(f"enu_pos_est: [{enu_pos_est[0]:.3f}, {enu_pos_est[1]:.3f}, {enu_pos_est[2]:.3f}] m")
-                log_print(f"enu_vel_est: [{enu_vel_est[0]:.3f}, {enu_vel_est[1]:.3f}, {enu_vel_est[2]:.3f}] m/s")
-                log_print(f"rcs_est: {rcs_est:.4f} dBsm")
-                log_print(f"rcs_est_std: {rcs_est_std:.4f}")
-                log_print(f"track_formation_source: {track_formation_source}")
-                # log_print(f"track_cause_of_death: {track_cause_of_death}")
-                # log_print(f"track_is_focused: {track_is_focused}")
-                # log_print(f"reserved_03: 0x{reserved_03:02X}")
-                # log_print(f"last_update_time: {last_update_time}")
-                # log_print(f"last_assoc_time: {last_assoc_time}")
-                # log_print(f"acquired_time: {acquired_time}")
-                # log_print(f"agl_est: {agl_est:.3f} m")
-                # log_print(f"prob_aircraft: {prob_aircraft:.4f}")
-                # log_print(f"prob_bird: {prob_bird:.4f}")
-                # log_print(f"prob_clutter: {prob_clutter:.4f}")
-                # log_print(f"prob_human: {prob_human:.4f}")
-                # log_print(f"prob_uav_fixedwing: {prob_uav_fixedwing:.4f}")
-                # log_print(f"prob_uav_multirotor: {prob_uav_multirotor:.4f}")
-                # log_print(f"prob_vehicle: {prob_vehicle:.4f}")
-                # log_print(f"reserved_04: 0x{reserved_04:08X}")
-                # log_print(f"ecef_state_covariance: [6x6 matrix with {len(ecef_state_covariance)} elements]")
-                # log_print(f"reserved_05: 0x{reserved_05:08X}")
-                # log_print(f"n_outstanding_track_beams: {n_outstanding_track_beams}")
-                # log_print(f"n_outstanding_clf_beams: {n_outstanding_clf_beams}")
-                # log_print(f"n_assoc_meas_ids: {n_assoc_meas_ids}")
-                # log_print(f"n_assoc_cookie_ids: {n_assoc_cookie_ids}")
-                # log_print(f"assoc_meas_mean_adjusted_rcs: {assoc_meas_mean_adjusted_rcs:.4f}")
-                # log_print(f"assoc_meas_chi2: {assoc_meas_chi2:.4f}")
-                # log_print(f"assoc_meas_ids: {assoc_meas_ids}")
-                # log_print(f"outstanding_clf_beams_ids: {outstanding_clf_beams_ids}")
-                # log_print(f"last_clf_beam_time: {last_clf_beam_time}")
-                # log_print(f"outstanding_track_beams_ids: {outstanding_track_beams_ids}")
-                # log_print(f"last_track_beam_time: {last_track_beam_time}")
-                # log_print(f"assoc_cookie_ids: {assoc_cookie_ids}")
+                log_print(f"\n{'='*80}", console=True, file_handle=file_handle)
+                log_print(f"TRACK PACKET #{packet_count}", console=True, file_handle=file_handle)
+                log_print(f"{'='*80}", console=True, file_handle=file_handle)
+                log_print(f"packet_sync: <tracks>", console=True, file_handle=file_handle)
+                log_print(f"n_bytes: {n_bytes}", console=True, file_handle=file_handle)
+                log_print(f"version: {version_major}.{version_minor}.{version_patch}", console=True, file_handle=file_handle)
+                log_print(f"reserved_00: 0x{reserved_00:02X}", console=True, file_handle=file_handle)
+                log_print(f"radar_id: {radar_id}", console=True, file_handle=file_handle)
+                log_print(f"packet_type: {packet_type}", console=True, file_handle=file_handle)
+                log_print(f"state: {state}", console=True, file_handle=file_handle)
+                log_print(f"reserved_01: 0x{reserved_01}", console=True, file_handle=file_handle)
+                log_print(f"lifetime: {lifetime}", console=True, file_handle=file_handle)
+                log_print(f"confidence_level: {confidence_level:.4f}", console=True, file_handle=file_handle)
+                log_print(f"informed_track_update_count: {informed_track_update_count}", console=True, file_handle=file_handle)
+                log_print(f"reserved_02: 0x{reserved_02}", console=True, file_handle=file_handle)
+                log_print(f"id: {track_id}", console=True, file_handle=file_handle)
+                log_print(f"track_UUID: {track_UUID}", console=True, file_handle=file_handle)
+                log_print(f"handoff_UUID: {handoff_UUID}", console=True, file_handle=file_handle)
+                log_print(f"track_merge_UUID: {track_merge_UUID}", console=True, file_handle=file_handle)
+                log_print(f"xyz_pos_est: [{xyz_pos_est[0]:.3f}, {xyz_pos_est[1]:.3f}, {xyz_pos_est[2]:.3f}] m", console=True, file_handle=file_handle)
+                log_print(f"xyz_vel_est: [{xyz_vel_est[0]:.3f}, {xyz_vel_est[1]:.3f}, {xyz_vel_est[2]:.3f}] m/s", console=True, file_handle=file_handle)
+                log_print(f"ecef_pos_est: [{ecef_pos_est[0]:.3f}, {ecef_pos_est[1]:.3f}, {ecef_pos_est[2]:.3f}] m", console=True, file_handle=file_handle)
+                log_print(f"ecef_vel_est: [{ecef_vel_est[0]:.3f}, {ecef_vel_est[1]:.3f}, {ecef_vel_est[2]:.3f}] m/s", console=True, file_handle=file_handle)
+                log_print(f"enu_pos_est: [{enu_pos_est[0]:.3f}, {enu_pos_est[1]:.3f}, {enu_pos_est[2]:.3f}] m", console=True, file_handle=file_handle)
+                log_print(f"enu_vel_est: [{enu_vel_est[0]:.3f}, {enu_vel_est[1]:.3f}, {enu_vel_est[2]:.3f}] m/s", console=True, file_handle=file_handle)
+                log_print(f"rcs_est: {rcs_est:.4f} dBsm", console=True, file_handle=file_handle)
+                log_print(f"rcs_est_std: {rcs_est_std:.4f}", console=True, file_handle=file_handle)
+                log_print(f"track_formation_source: {track_formation_source}", console=True, file_handle=file_handle)
+                log_print(f"track_cause_of_death: {track_cause_of_death}", console=True, file_handle=file_handle)
+                log_print(f"track_is_focused: {track_is_focused}", console=True, file_handle=file_handle)
+                log_print(f"reserved_03: 0x{reserved_03:02X}", console=True, file_handle=file_handle)
+                log_print(f"last_update_time: {last_update_time}", console=True, file_handle=file_handle)
+                log_print(f"last_assoc_time: {last_assoc_time}", console=True, file_handle=file_handle)
+                log_print(f"acquired_time: {acquired_time}", console=True, file_handle=file_handle)
+                log_print(f"agl_est: {agl_est:.3f} m", console=True, file_handle=file_handle)
+                log_print(f"prob_aircraft: {prob_aircraft:.4f}", console=True, file_handle=file_handle)
+                log_print(f"prob_bird: {prob_bird:.4f}", console=True, file_handle=file_handle)
+                log_print(f"prob_clutter: {prob_clutter:.4f}", console=True, file_handle=file_handle)
+                log_print(f"prob_human: {prob_human:.4f}", console=True, file_handle=file_handle)
+                log_print(f"prob_uav_fixedwing: {prob_uav_fixedwing:.4f}", console=True, file_handle=file_handle)
+                log_print(f"prob_uav_multirotor: {prob_uav_multirotor:.4f}", console=True, file_handle=file_handle)
+                log_print(f"prob_vehicle: {prob_vehicle:.4f}", console=True, file_handle=file_handle)
+                log_print(f"reserved_04: 0x{reserved_04:08X}", console=True, file_handle=file_handle)
+                log_print(f"ecef_state_covariance: [6x6 matrix with {len(ecef_state_covariance)} elements]", console=True, file_handle=file_handle)
+                log_print(f"reserved_05: 0x{reserved_05:08X}", console=True, file_handle=file_handle)
+                
+                if (offset < n_bytes):
+                    log_print(f"n_outstanding_track_beams: {n_outstanding_track_beams}", console=True, file_handle=file_handle)
+                    log_print(f"n_outstanding_clf_beams: {n_outstanding_clf_beams}", console=True, file_handle=file_handle)
+                    log_print(f"n_assoc_meas_ids: {n_assoc_meas_ids}", console=True, file_handle=file_handle)
+                    log_print(f"n_assoc_cookie_ids: {n_assoc_cookie_ids}", console=True, file_handle=file_handle)
+                    log_print(f"assoc_meas_mean_adjusted_rcs: {assoc_meas_mean_adjusted_rcs:.4f}", console=True, file_handle=file_handle)
+                    log_print(
+                        "assoc_meas_chi2: " + ", ".join(f"{v:.4f}" for v in assoc_meas_chi2),
+                        console=True,
+                        file_handle=file_handle
+                    )
+                    log_print(f"assoc_meas_ids: {assoc_meas_ids}", console=True, file_handle=file_handle)
+                    log_print(f"outstanding_clf_beams_ids: {outstanding_clf_beams_ids}", console=True, file_handle=file_handle)
+                    log_print(f"last_clf_beam_time: {last_clf_beam_time}", console=True, file_handle=file_handle)
+                    log_print(f"outstanding_track_beams_ids: {outstanding_track_beams_ids}", console=True, file_handle=file_handle)
+                    log_print(f"last_track_beam_time: {last_track_beam_time}", console=True, file_handle=file_handle)
+                    log_print(f"assoc_cookie_ids: {assoc_cookie_ids}", console=True, file_handle=file_handle)
+                    log_print(f"reserved_06: {reserved_06[:40]}{'...' if len(reserved_06) > 40 else ''}", console=True, file_handle=file_handle)
+                
                 # log_print(f"reserved_06: {reserved_06[:40]}{'...' if len(reserved_06) > 40 else ''}")
-                log_print(f"{'='*80}\n")
+                log_print(f"{'='*80}\n", console=True, file_handle=file_handle)
                 
                 if packet_count >= MAX_PACKETS:
                     return False
                 
     except Exception as e:
-        log_print(f"Error decoding packet: {e}")
+        log_print(f"Error decoding packet: {e}", console=True, file_handle=file_handle)
         import traceback
-        log_print(traceback.format_exc())
+        log_print(traceback.format_exc(), console=True, file_handle=file_handle)
         # Fall back to hex dump
-        log_print(f"Raw data (first 256 bytes): {data[:256].hex()}")
+        log_print(f"Raw data (first 256 bytes): {data[:256].hex()}", console=True, file_handle=file_handle)
     
     return True
 
 def connect_and_receive():
-    global log_file
-    buffer = b''
+    global track_log_file, status_log_file
     
-    try:
-        # Open log file
-        log_file = open(log_filename, 'w', encoding='utf-8')
-        log_print(f"Track Data Log - Started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        log_print(f"Connecting to {HOST}:{PORT}...")
-        log_print("="*60 + "\n")
+    def receive_track_data():
+        """Thread function to receive track packets"""
+        global track_log_file, packet_count
+        buffer = b''
         
-        # Create a TCP socket
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(10)  # 10 second timeout
-        
-        sock.connect((HOST, PORT))
-        log_print("Connected successfully!")
-        log_print("Receiving and decoding track data...\n")
-        
-        while True:
-            data = sock.recv(4096)
-            if not data:
-                log_print("\nConnection closed by remote host.")
-                break
+        try:
+            track_log_file = open(track_log_filename, 'w', encoding='utf-8')
+            log_print(f"Track Data Log - Started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", console=True, file_handle=track_log_file)
+            log_print(f"Connecting to {HOST}:{TRACK_PORT}...", console=True, file_handle=track_log_file)
+            log_print("="*60 + "\n", console=True, file_handle=track_log_file)
             
-            # Add to buffer
-            buffer += data
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(1.0)  # 1 second timeout for interruptibility
+            sock.connect((HOST, TRACK_PORT))
             
-            # Process complete packets
-            while b'<tracks>' in buffer:
-                # Find the start of next packet
-                start_idx = buffer.find(b'<tracks>')
+            log_print("Track connection successful!", console=True, file_handle=track_log_file)
+            log_print("Receiving and decoding track data...\n", console=True, file_handle=track_log_file)
+            
+            while not shutdown_flag.is_set():
+                try:
+                    data = sock.recv(4096)
+                except socket.timeout:
+                    continue
                 
-                # Look for the end or next packet
-                next_start = buffer.find(b'<tracks>', start_idx + 8)
-                
-                if next_start == -1:
-                    # Wait for more data
+                if not data:
+                    log_print("\nTrack connection closed by remote host.", console=True, file_handle=track_log_file)
                     break
                 
-                # Extract complete packet
-                packet = buffer[start_idx:next_start]
-                buffer = buffer[next_start:]
+                buffer += data
                 
-                # Decode the packet
-                should_continue = decode_track_packet(packet)
-                if not should_continue:
-                    log_print(f"\nReached maximum packet limit ({MAX_PACKETS}). Stopping.")
-                    return
-            
-    except socket.timeout:
-        log_print("Connection timed out.")
-    except ConnectionRefusedError:
-        log_print("Connection refused. The server may not be running.")
-    except KeyboardInterrupt:
-        log_print("\n\nInterrupted by user.")
-    except Exception as e:
-        log_print(f"Error: {e}")
-    finally:
-        sock.close()
-        log_print(f"\nSocket closed.")
-        log_print(f"Log ended at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                while b'<tracks>' in buffer:
+                    start_idx = buffer.find(b'<tracks>')
+                    next_start = buffer.find(b'<tracks>', start_idx + 8)
+                    
+                    if next_start == -1:
+                        break
+                    
+                    packet = buffer[start_idx:next_start]
+                    buffer = buffer[next_start:]
+                    
+                    should_continue = decode_track_packet(packet, track_log_file)
+                    if not should_continue:
+                        log_print(f"\nReached maximum packet limit ({MAX_PACKETS}). Stopping.", console=True, file_handle=track_log_file)
+                        shutdown_flag.set()
+                        sock.close()
+                        return
+                        
+        except socket.timeout:
+            log_print("Track connection timed out.", console=True, file_handle=track_log_file)
+        except ConnectionRefusedError:
+            log_print("Track connection refused.", console=True, file_handle=track_log_file)
+        except KeyboardInterrupt:
+            log_print("\nTrack connection interrupted by user.", console=True, file_handle=track_log_file)
+        except Exception as e:
+            log_print(f"Track error: {e}", console=True, file_handle=track_log_file)
+        finally:
+            try:
+                sock.close()
+            except:
+                pass
+            log_print(f"\nTrack socket closed.", console=True, file_handle=track_log_file)
+            log_print(f"Log ended at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", console=True, file_handle=track_log_file)
+            if track_log_file:
+                track_log_file.close()
+                print(f"\nTrack log saved to: {track_log_filename}")
+    
+    def receive_status_data():
+        """Thread function to receive status packets"""
+        global status_log_file
+        buffer = b''
         
-        if log_file:
-            log_file.close()
-            print(f"\nLog saved to: {log_filename}")
+        try:
+            status_log_file = open(status_log_filename, 'w', encoding='utf-8')
+            log_print(f"Status Data Log - Started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", console=True, file_handle=status_log_file)
+            log_print(f"Connecting to {HOST}:{STATUS_PORT}...", console=True, file_handle=status_log_file)
+            log_print("="*60 + "\n", console=True, file_handle=status_log_file)
+            
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(1.0)  # 1 second timeout for interruptibility
+            sock.connect((HOST, STATUS_PORT))
+            
+            log_print("Status connection successful!", console=True, file_handle=status_log_file)
+            log_print("Receiving and decoding status data...\n", console=True, file_handle=status_log_file)
+            
+            while not shutdown_flag.is_set():
+                try:
+                    data = sock.recv(4096)
+                except socket.timeout:
+                    continue
+                    
+                if not data:
+                    log_print("\nStatus connection closed by remote host.", console=True, file_handle=status_log_file)
+                    break
+                
+                buffer += data
+                
+                while b'<status>' in buffer:
+                    start_idx = buffer.find(b'<status>')
+                    next_start = buffer.find(b'<status>', start_idx + 8)
+                    
+                    if next_start == -1:
+                        break
+                    
+                    packet = buffer[start_idx:next_start]
+                    buffer = buffer[next_start:]
+                    
+                    decode_status_packet(packet, status_log_file)
+                        
+        except socket.timeout:
+            log_print("Status connection timed out.", console=True, file_handle=status_log_file)
+        except ConnectionRefusedError:
+            log_print("Status connection refused.", console=True, file_handle=status_log_file)
+        except KeyboardInterrupt:
+            log_print("\nStatus connection interrupted by user.", console=True, file_handle=status_log_file)
+        except Exception as e:
+            log_print(f"Status error: {e}", console=True, file_handle=status_log_file)
+        finally:
+            try:
+                sock.close()
+            except:
+                pass
+            log_print(f"\nStatus socket closed.", console=True, file_handle=status_log_file)
+            log_print(f"Log ended at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", console=True, file_handle=status_log_file)
+            if status_log_file:
+                status_log_file.close()
+                print(f"\nStatus log saved to: {status_log_filename}")
+    
+    # Create and start both threads
+    track_thread = threading.Thread(target=receive_track_data, daemon=True)
+    status_thread = threading.Thread(target=receive_status_data, daemon=True)
+    
+    # Signal handler for Ctrl+C
+    def signal_handler(sig, frame):
+        print("\n\nInterrupted by user. Shutting down...")
+        shutdown_flag.set()
+        sys.exit(0)
+    
+    signal.signal(signal.SIGINT, signal_handler)
+    
+    track_thread.start()
+    status_thread.start()
+    
+    # Wait for both threads to complete or shutdown signal
+    try:
+        while track_thread.is_alive() or status_thread.is_alive():
+            track_thread.join(timeout=0.5)
+            status_thread.join(timeout=0.5)
+            if shutdown_flag.is_set():
+                break
+    except KeyboardInterrupt:
+        print("\n\nInterrupted by user. Shutting down...")
+        shutdown_flag.set()
 
 if __name__ == "__main__":
     connect_and_receive()
