@@ -58,138 +58,271 @@ def decode_track_packet(data):
                     
                 # Parse header according to spec
                 offset = 0
+                field_count = 0
+                
                 
                 # Packet header
                 packet_sync = b'<tracks>'  # Already consumed
+                
+                
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
                 n_bytes = struct.unpack('<I', packet[offset:offset+4])[0]
                 offset += 4
+                
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
                 
                 version_major = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
                 
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
                 version_minor = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
+                
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
                 
                 version_patch = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
                 
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
                 reserved_00 = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
+                
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
                 
                 radar_id = struct.unpack('<I', packet[offset:offset+4])[0]
                 offset += 4
                 
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
                 # Track message header fields
-                packet_type = struct.unpack('<H', packet[offset:offset+1])[0]
+                packet_type = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
+                
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
                 
                 state = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
                 
-                reserved_01 = struct.unpack('<B', packet[offset:offset+6])[0]
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
+                # reserved_01 = struct.unpack('<6B', packet[offset:offset+6])[0]
+                reserved_01 = packet[offset:offset+6].hex()
                 offset += 6
+                
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
                 
                 lifetime = struct.unpack('<I', packet[offset:offset+4])[0]
                 offset += 4
                 
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
                 confidence_level = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
+                
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
                 
                 informed_track_update_count = struct.unpack('<I', packet[offset:offset+4])[0]
                 offset += 4
                 
-                reserved_02 = struct.unpack('<I', packet[offset:offset+8])[0]
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
+                # reserved_02 = struct.unpack('<8B', packet[offset:offset+8])[0]
+                reserved_02 = packet[offset:offset+8].hex()
                 offset += 8
                 
-                track_id = struct.unpack('<I', packet[offset:offset+8])[0]
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
+                track_id = struct.unpack('<Q', packet[offset:offset+8])[0]
                 offset += 8
+                
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
                 
                 # UUIDs (16 bytes each)
                 track_UUID = packet[offset:offset+16].hex()
                 offset += 16
                 
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
                 handoff_UUID = packet[offset:offset+16].hex()
                 offset += 16
                 
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
                 track_merge_UUID = packet[offset:offset+16].hex()
                 offset += 16
+                
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
                 
                 # Position and velocity estimates (3 floats each = 12 bytes)
                 xyz_pos_est = struct.unpack('<fff', packet[offset:offset+12])
                 offset += 12
                 
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
                 xyz_vel_est = struct.unpack('<fff', packet[offset:offset+12])
                 offset += 12
                 
-                ecef_pos_est = struct.unpack('<fff', packet[offset:offset+24])
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
+                ecef_pos_est = struct.unpack('<ddd', packet[offset:offset+24])
                 offset += 24
+                
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
                 
                 ecef_vel_est = struct.unpack('<fff', packet[offset:offset+12])
                 offset += 12
                 
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
                 enu_pos_est = struct.unpack('<fff', packet[offset:offset+12])
                 offset += 12
                 
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
                 enu_vel_est = struct.unpack('<fff', packet[offset:offset+12])
                 offset += 12
+                
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
                 
                 # RCS estimates
                 rcs_est = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
                 
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
                 rcs_est_std = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
+                
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
                 
                 # Track metadata
                 track_formation_source = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
                 
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
                 track_cause_of_death = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
+                
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
                 
                 track_is_focused = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
                 
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
                 reserved_03 = struct.unpack('<B', packet[offset:offset+1])[0]
                 offset += 1
+                
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
                 
                 # Timestamps (assuming uint64 - 8 bytes each)
                 last_update_time = struct.unpack('<Q', packet[offset:offset+8])[0]
                 offset += 8
                 
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
                 last_assoc_time = struct.unpack('<Q', packet[offset:offset+8])[0]
                 offset += 8
                 
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
                 acquired_time = struct.unpack('<Q', packet[offset:offset+8])[0]
                 offset += 8
+                
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
                 
                 # AGL and probabilities
                 agl_est = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
                 
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
                 prob_aircraft = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
+                
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
                 
                 prob_bird = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
                 
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
                 prob_clutter = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
+                
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
                 
                 prob_human = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
                 
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
                 prob_uav_fixedwing = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
+                
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
                 
                 prob_uav_multirotor = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
                 
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
                 prob_vehicle = struct.unpack('<f', packet[offset:offset+4])[0]
                 offset += 4
                 
-                reserved_04 = struct.unpack('<I', packet[offset:offset+4])[0]
-                offset += 8
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
+                # reserved_04 = struct.unpack('<I', packet[offset:offset+4])[0]
+                reserved_04 = packet[offset:offset+32].hex()
+                offset += 32
+                
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
                 
                 # ECEF state covariance (36 floats = 144 bytes for 6x6 matrix)
                 ecef_state_covariance = []
@@ -197,62 +330,107 @@ def decode_track_packet(data):
                     ecef_state_covariance.append(struct.unpack('<f', packet[offset:offset+4])[0])
                     offset += 4
                 
-                reserved_05 = struct.unpack('<I', packet[offset:offset+4])[0]
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
+                # reserved_05 = struct.unpack('<I', packet[offset:offset+4])[0]
+                reserved_05 = packet[offset:offset+132].hex()
                 offset += 132
                 
-                # # Counts
-                # n_outstanding_track_beams = struct.unpack('<H', packet[offset:offset+2])[0]
-                # offset += 2
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
                 
-                # n_outstanding_clf_beams = struct.unpack('<H', packet[offset:offset+2])[0]
-                # offset += 2
+                # Counts
+                n_outstanding_track_beams = struct.unpack('<B', packet[offset:offset+1])[0]
+                offset += 1
                 
-                # n_assoc_meas_ids = struct.unpack('<H', packet[offset:offset+2])[0]
-                # offset += 2
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
                 
-                # n_assoc_cookie_ids = struct.unpack('<H', packet[offset:offset+2])[0]
-                # offset += 2
+                n_outstanding_clf_beams = struct.unpack('<B', packet[offset:offset+1])[0]
+                offset += 1
                 
-                # # Association statistics
-                # assoc_meas_mean_adjusted_rcs = struct.unpack('<f', packet[offset:offset+4])[0]
-                # offset += 4
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
                 
-                # assoc_meas_chi2 = struct.unpack('<f', packet[offset:offset+4])[0]
-                # offset += 4
+                n_assoc_meas_ids = struct.unpack('<B', packet[offset:offset+1])[0]
+                offset += 1
                 
-                # # Variable length arrays - read based on counts
-                # assoc_meas_ids = []
-                # for i in range(n_assoc_meas_ids):
-                #     if offset + 4 <= len(packet):
-                #         assoc_meas_ids.append(struct.unpack('<I', packet[offset:offset+4])[0])
-                #         offset += 4
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
                 
-                # outstanding_clf_beams_ids = []
-                # for i in range(n_outstanding_clf_beams):
-                #     if offset + 4 <= len(packet):
-                #         outstanding_clf_beams_ids.append(struct.unpack('<I', packet[offset:offset+4])[0])
-                #         offset += 4
+                n_assoc_cookie_ids = struct.unpack('<B', packet[offset:offset+1])[0]
+                offset += 1
                 
-                # last_clf_beam_time = struct.unpack('<Q', packet[offset:offset+8])[0] if offset + 8 <= len(packet) else 0
-                # offset += 8 if offset + 8 <= len(packet) else 0
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
                 
-                # outstanding_track_beams_ids = []
-                # for i in range(n_outstanding_track_beams):
-                #     if offset + 4 <= len(packet):
-                #         outstanding_track_beams_ids.append(struct.unpack('<I', packet[offset:offset+4])[0])
-                #         offset += 4
+                # Association statistics
+                assoc_meas_mean_adjusted_rcs = struct.unpack('<f', packet[offset:offset+4])[0]
+                offset += 4
                 
-                # last_track_beam_time = struct.unpack('<Q', packet[offset:offset+8])[0] if offset + 8 <= len(packet) else 0
-                # offset += 8 if offset + 8 <= len(packet) else 0
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
                 
-                # assoc_cookie_ids = []
-                # for i in range(n_assoc_cookie_ids):
-                #     if offset + 4 <= len(packet):
-                #         assoc_cookie_ids.append(struct.unpack('<I', packet[offset:offset+4])[0])
-                #         offset += 4
+                assoc_meas_chi2 = []
+                for i in range(6):
+                    assoc_meas_chi2.append(struct.unpack('<f', packet[offset:offset+4])[0])
+                    offset += 4
                 
-                # # Reserved field at end
-                # reserved_06 = packet[offset:].hex() if offset < len(packet) else ""
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
+                # Variable length arrays - read based on counts
+                assoc_meas_ids = []
+                for i in range(6):
+                    assoc_meas_ids.append(struct.unpack('<Q', packet[offset:offset+8])[0])
+                    offset += 8
+                
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
+                outstanding_clf_beams_ids = []
+                for i in range(2):
+                    outstanding_clf_beams_ids.append(struct.unpack('<Q', packet[offset:offset+8])[0])
+                    offset += 8
+                
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
+                last_clf_beam_time = struct.unpack('<Q', packet[offset:offset+8])[0]
+                offset += 8
+                
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
+                outstanding_track_beams_ids = []
+                for i in range(4):
+                    outstanding_track_beams_ids.append(struct.unpack('<Q', packet[offset:offset+8])[0])
+                    offset += 8
+                
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
+                last_track_beam_time = struct.unpack('<q', packet[offset:offset+8])[0]
+                offset += 8 
+                
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
+                assoc_cookie_ids = []
+                for i in range(2):
+                    assoc_cookie_ids.append(struct.unpack('<Q', packet[offset:offset+8])[0])
+                    offset += 8
+                
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
+                
+                # Reserved field at end
+                reserved_06 = packet[offset:offset+64].hex()
+                offset += 64
+                
+                log_print(f"number: {field_count}, offset: {offset + 8}")
+                field_count += 1
                 
                 # Print all fields
                 log_print(f"\n{'='*80}")
@@ -265,11 +443,11 @@ def decode_track_packet(data):
                 log_print(f"radar_id: {radar_id}")
                 log_print(f"packet_type: {packet_type}")
                 log_print(f"state: {state}")
-                log_print(f"reserved_01: 0x{reserved_01:02X}")
+                log_print(f"reserved_01: 0x{reserved_01}")
                 log_print(f"lifetime: {lifetime}")
                 log_print(f"confidence_level: {confidence_level:.4f}")
                 log_print(f"informed_track_update_count: {informed_track_update_count}")
-                log_print(f"reserved_02: 0x{reserved_02:08X}")
+                log_print(f"reserved_02: 0x{reserved_02}")
                 log_print(f"id: {track_id}")
                 log_print(f"track_UUID: {track_UUID}")
                 log_print(f"handoff_UUID: {handoff_UUID}")
