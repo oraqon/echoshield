@@ -768,8 +768,143 @@ def get_radar_mode():
         log_print(f"Error querying radar mode: {e}", console=False, file_handle=command_log_file)
         return None
 
+def get_ins_data():
+    """Query INS data using get_ins_data command"""
+    global command_id, command_log_file
+    
+    try:
+        import json
+        
+        # Open command log file if not already open
+        if command_log_file is None:
+            command_log_file = open(command_log_filename, 'w', encoding='utf-8')
+            log_print(f"Command Log - Started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", console=False, file_handle=command_log_file)
+            log_print("="*60 + "\n", console=False, file_handle=command_log_file)
+        
+        # Create get_ins_data command
+        command = {
+            "method": "get_ins_data",
+            "id": command_id
+        }
+        command_id += 1
+        
+        command_json = json.dumps(command)
+        command_bytes = command_json.encode('utf-8')
+        
+        # Log command being sent
+        log_print(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]", console=True, file_handle=command_log_file)
+        log_print(f"Querying INS data: {command_json}", console=True, file_handle=command_log_file)
+        
+        # Connect and send command
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(5.0)
+        sock.connect((HOST, COMMAND_PORT))
+        
+        sock.sendall(command_bytes)
+        
+        # Wait for response
+        try:
+            response = sock.recv(4096)
+            if response:
+                response_str = response.decode('utf-8', errors='ignore')
+                log_print(f"INS data response: {response_str}", console=True, file_handle=command_log_file)
+                
+                # Try to parse JSON response
+                try:
+                    response_json = json.loads(response_str)
+                    log_print(f"Parsed INS data: {json.dumps(response_json, indent=2)}", console=True, file_handle=command_log_file)
+                    log_print("-"*60, console=False, file_handle=command_log_file)
+                    sock.close()
+                    return response_json.get('result', {})
+                except:
+                    pass
+        except socket.timeout:
+            log_print("INS data query timeout", console=True, file_handle=command_log_file)
+        
+        log_print("-"*60, console=False, file_handle=command_log_file)
+        sock.close()
+        return None
+        
+    except Exception as e:
+        log_print(f"Error querying INS data: {e}", console=True, file_handle=command_log_file)
+        return None
+
+def set_radar_kinematics(ins_data):
+    """Set radar kinematics using data from get_ins_data"""
+    global command_id, command_log_file
+    
+    try:
+        import json
+        
+        # Open command log file if not already open
+        if command_log_file is None:
+            command_log_file = open(command_log_filename, 'w', encoding='utf-8')
+            log_print(f"Command Log - Started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", console=False, file_handle=command_log_file)
+            log_print("="*60 + "\n", console=False, file_handle=command_log_file)
+        
+        # Create set_radar_kinematics command with INS data
+        command = {
+            "method": "set_radar_kinematics",
+            "id": command_id,
+            "params": ins_data
+        }
+        command_id += 1
+        
+        command_json = json.dumps(command)
+        command_bytes = command_json.encode('utf-8')
+        
+        # Log command being sent
+        log_print(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]", console=True, file_handle=command_log_file)
+        log_print(f"Setting radar kinematics: {command_json}", console=True, file_handle=command_log_file)
+        
+        # Connect and send command
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(5.0)
+        sock.connect((HOST, COMMAND_PORT))
+        
+        sock.sendall(command_bytes)
+        
+        # Wait for response
+        try:
+            response = sock.recv(1024)
+            if response:
+                response_str = response.decode('utf-8', errors='ignore')
+                log_print(f"Set kinematics response: {response_str}", console=True, file_handle=command_log_file)
+                
+                # Try to parse as JSON for pretty logging
+                try:
+                    response_json = json.loads(response_str)
+                    log_print(f"Parsed response: {json.dumps(response_json, indent=2)}", console=True, file_handle=command_log_file)
+                except:
+                    pass
+            else:
+                log_print("No response received (empty)", console=True, file_handle=command_log_file)
+        except socket.timeout:
+            log_print("No response received (timeout)", console=True, file_handle=command_log_file)
+        
+        log_print("-"*60, console=False, file_handle=command_log_file)
+        
+        sock.close()
+        return True
+        
+    except Exception as e:
+        log_print(f"Error setting radar kinematics: {e}", console=True, file_handle=command_log_file)
+        return False
+
 def connect_and_receive():
     global track_log_file, status_log_file
+    
+    # Get INS data and set radar kinematics before starting
+    print("Getting INS data...")
+    ins_data = get_ins_data()
+    
+    if ins_data:
+        print("Setting radar kinematics...")
+        set_radar_kinematics(ins_data)
+    else:
+        print("Warning: Could not retrieve INS data")
+    
+    print()
     
     # Check radar mode and send startup command if needed
     print("Checking radar mode...")
