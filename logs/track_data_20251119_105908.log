@@ -1,0 +1,52 @@
+Track Data Log - Started at 2025-11-19 10:59:08
+Connecting to 162.33.236.188:29982...
+============================================================
+
+Connected successfully!
+Receiving and decoding track data...
+
+Error decoding packet: unpack requires a buffer of 2 bytes
+Traceback (most recent call last):
+  File "C:\Users\ASUS\echoshield\connect.py", line 83, in decode_track_packet
+    packet_type = struct.unpack('<H', packet[offset:offset+1])[0]
+                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+struct.error: unpack requires a buffer of 2 bytes
+
+Raw data (first 256 bytes): 3c747261636b733ed802000001020000d97700c8010000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000dc5bb065c95c7918000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+Error decoding packet: unpack requires a buffer of 2 bytes
+Traceback (most recent call last):
+  File "C:\Users\ASUS\echoshield\connect.py", line 83, in decode_track_packet
+    packet_type = struct.unpack('<H', packet[offset:offset+1])[0]
+                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+struct.error: unpack requires a buffer of 2 bytes
+
+Raw data (first 256 bytes): 3c747261636b733ed802000001020000d97700c80102000000000000150000000000c8420c0000000800000000000000323e0000000000001413f2eae7f54737a4508cad3f8e62050000000000000000000000000000000000000000000000000000000000000000526c17c43cabb6c27f7972447cb4b63efb2099bf5c97293e455d0caa8a7a41c14b5aaf1bb6c14bc1e48859f1c9e9514126876ebec4103d3fe13b7ebf813358c49db0334462ba6243482e17bf386a98be142e89bf5f11c0c1f333394000000000dc5bb065c95c7918088fc459c95c79183845dae2c85c7918f5f677434521db3ad78d723fe789723cf0ac6331e8e2ef36e29d133d3b9cce35
+Error decoding packet: unpack requires a buffer of 2 bytes
+Traceback (most recent call last):
+  File "C:\Users\ASUS\echoshield\connect.py", line 83, in decode_track_packet
+    packet_type = struct.unpack('<H', packet[offset:offset+1])[0]
+                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+struct.error: unpack requires a buffer of 2 bytes
+
+Raw data (first 256 bytes): 3c747261636b733ed802000001020000d97700c80102000000000000110000000000c8420f0000000800000000000000343e0000000000002e3e76543580476cb67dc02cb681297a0000000000000000000000000000000000000000000000000000000000000000f078e6c3f0aab24330299744a5d5b5c0ea85a93f7b8eabc0ef333899267b41c1bf8e6fb554c24bc14ff8ea6411ea51419aa9eb40809a1f3e28de3a405ef16fc48c661344e5a4364456c9c44069db9e40f09111bff802b1c1082b414000000000dc5bb065c95c7918dc5bb065c95c791810ddd6fbc85c79189be93d4445a2023903e57f3fa7533a398aee3d2ea9c808341173e538f056212f
+Error decoding packet: unpack requires a buffer of 2 bytes
+Traceback (most recent call last):
+  File "C:\Users\ASUS\echoshield\connect.py", line 83, in decode_track_packet
+    packet_type = struct.unpack('<H', packet[offset:offset+1])[0]
+                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+struct.error: unpack requires a buffer of 2 bytes
+
+Raw data (first 256 bytes): 3c747261636b733ed802000001020000d97700c80102000000000000100000000000c842080000000800000000000000353e0000000000008e7c16d780904ebc866c28191a9b213e0000000000000000000000000000000000000000000000000000000000000000776d17c384e82d43cbf68344c01db241e0eb34bee170b23f0394728c2a7b41c1c1a2453a86c24bc19ad47fcdb2e95141956744c1348a3dc1da0366c1d96c64c467f186435ff5fe43598182c0506aafc15005033f7042f1c1ff2b5a4000000000dc5bb065c95c791860c6ce53c95c79189a32c704c95c7918024a0344b947c439c3bd7f3fda5f5f38c911cc2dfb95e3361f16173afcb46631
+Error decoding packet: unpack requires a buffer of 2 bytes
+Traceback (most recent call last):
+  File "C:\Users\ASUS\echoshield\connect.py", line 83, in decode_track_packet
+    packet_type = struct.unpack('<H', packet[offset:offset+1])[0]
+                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+struct.error: unpack requires a buffer of 2 bytes
+
+Raw data (first 256 bytes): 3c747261636b733ed802000001020000d97700c801020000000000000e000000c2935f42050000000800000000000000373e0000000000000ea1a85bc1254842a65bc808bde6880f0000000000000000000000000000000000000000000000000000000000000000cca885c4145faec236dbd144413a5541f25a32c04a3b7f41c673aac1497b41c1acbbc18dacc04bc134b28f6e50ea51410cb8a1c12a66343fd34ab1c064e5b7c4b0d49d44239be54304de8bc1d80a34c118c22f40b65cb0c19546744000000000dc5bb065c95c7918088fc459c95c79180f61db0ec95c79186837f143282b093c6d6a793f02aaf039f1b8c331340b0c3b23ac713c3e6dab35
+
+Reached maximum packet limit (5). Stopping.
+
+Socket closed.
+Log ended at 2025-11-19 10:59:09

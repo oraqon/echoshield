@@ -1,0 +1,167 @@
+Track Data Log - Started at 2025-11-19 10:34:44
+Connecting to 162.33.236.188:29982...
+============================================================
+
+Connected successfully!
+Receiving and decoding track data...
+
+
+================================================================================
+TRACK PACKET #1
+================================================================================
+packet_sync: <tracks>
+n_bytes: 728
+version: 1.2.0
+reserved_00: 0x00
+radar_id: 3355473881
+packet_type: 1
+state: 0
+reserved_01: 0x00
+lifetime: 0
+confidence_level: 0.0000
+informed_track_update_count: 0
+reserved_02: 0x00000000
+id: 7
+track_UUID: 00000000000000000000000000000000
+handoff_UUID: 00000000000000000000000000000000
+track_merge_UUID: 00000000000000000000000000000000
+xyz_pos_est: [0.000, 0.000, 0.000] m
+xyz_vel_est: [0.000, 0.000, 0.000] m/s
+ecef_pos_est: [0.000, 0.000, 0.000] m
+ecef_vel_est: [0.000, 0.000, 0.000] m/s
+enu_pos_est: [0.000, 0.000, 0.000] m
+enu_vel_est: [0.000, 0.000, 0.000] m/s
+rcs_est: 0.0000 dBsm
+rcs_est_std: 0.0000
+track_formation_source: 0
+================================================================================
+
+
+================================================================================
+TRACK PACKET #2
+================================================================================
+packet_sync: <tracks>
+n_bytes: 728
+version: 1.2.0
+reserved_00: 0x00
+radar_id: 3355473881
+packet_type: 513
+state: 0
+reserved_01: 0x00
+lifetime: 0
+confidence_level: 0.0000
+informed_track_update_count: 1120403456
+reserved_02: 0x00000019
+id: 7
+track_UUID: 00000000df38000000000000469f8f32
+handoff_UUID: ed2143d8b8ace856114f8f4c00000000
+track_merge_UUID: 00000000000000000000000000000000
+xyz_pos_est: [0.000, 0.000, 0.000] m
+xyz_vel_est: [-589.546, -90.282, 979.880] m/s
+ecef_pos_est: [2.997, -0.041, 1.725] m
+ecef_vel_est: [0.000, -12.092, 0.000] m/s
+enu_pos_est: [-12.735, 90.214, 13.120] m
+enu_vel_est: [-2.979, -0.989, -1.450] m/s
+rcs_est: -875.7811 dBsm
+rcs_est_std: 703.8831
+track_formation_source: 5
+================================================================================
+
+
+================================================================================
+TRACK PACKET #3
+================================================================================
+packet_sync: <tracks>
+n_bytes: 728
+version: 1.2.0
+reserved_00: 0x00
+radar_id: 3355473881
+packet_type: 513
+state: 0
+reserved_01: 0x00
+lifetime: 0
+confidence_level: 0.0000
+informed_track_update_count: 1120403456
+reserved_02: 0x0000000B
+id: 7
+track_UUID: 00000000e0380000000000005e00315b
+handoff_UUID: 39cc4b8795b90957fc41722c00000000
+track_merge_UUID: 00000000000000000000000000000000
+xyz_pos_est: [0.000, 0.000, 0.000] m
+xyz_vel_est: [-387.769, 283.997, 1100.804] m/s
+ecef_pos_est: [11.986, 3.074, -7.168] m
+ecef_vel_est: [0.523, -12.093, 160929342100271529984.000] m/s
+enu_pos_est: [-12.735, 0.000, 13.120] m
+enu_vel_est: [0.002, -11.752, -8.148] m/s
+rcs_est: -891.0743 dBsm
+rcs_est_std: 506.3962
+track_formation_source: 140
+================================================================================
+
+
+================================================================================
+TRACK PACKET #4
+================================================================================
+packet_sync: <tracks>
+n_bytes: 728
+version: 1.2.0
+reserved_00: 0x00
+radar_id: 3355473881
+packet_type: 513
+state: 0
+reserved_01: 0x00
+lifetime: 0
+confidence_level: 0.0000
+informed_track_update_count: 1118420325
+reserved_02: 0x00000007
+id: 7
+track_UUID: 00000000e138000000000000c512d6f8
+handoff_UUID: 741f403690bb0f9c1afabb7e00000000
+track_merge_UUID: 00000000000000000000000000000000
+xyz_pos_est: [0.000, 0.000, 0.000] m
+xyz_vel_est: [-571.289, 552.517, 1519.439] m/s
+ecef_pos_est: [-1.728, 1.519, -4.726] m
+ecef_vel_est: [4017228800.000, -12.093, 1.120] m/s
+enu_pos_est: [-12.735, -0.001, 13.120] m
+enu_vel_est: [4.833, -1.964, 0.645] m/s
+rcs_est: -1172.9749 dBsm
+rcs_est_std: 729.8112
+track_formation_source: 38
+================================================================================
+
+
+================================================================================
+TRACK PACKET #5
+================================================================================
+packet_sync: <tracks>
+n_bytes: 728
+version: 1.2.0
+reserved_00: 0x00
+radar_id: 3355473881
+packet_type: 513
+state: 0
+reserved_01: 0x00
+lifetime: 0
+confidence_level: 0.0000
+informed_track_update_count: 1120141390
+reserved_02: 0x0000000A
+id: 7
+track_UUID: 00000000e438000000000000fe7b7131
+handoff_UUID: 4e754d40955d6820e48e66b300000000
+track_merge_UUID: 00000000000000000000000000000000
+xyz_pos_est: [0.000, 0.000, 0.000] m
+xyz_vel_est: [639.534, 143.969, 1151.896] m/s
+ecef_pos_est: [24.429, 5.575, -8.509] m
+ecef_vel_est: [-1067163397552504569856.000, -12.093, -40058552516487791958901158226088165376.000] m/s
+enu_pos_est: [-12.735, -353697655822424735744.000, 13.119] m
+enu_vel_est: [-5.217, -21.091, -15.105] m/s
+rcs_est: -1110.0515 dBsm
+rcs_est_std: -502.8296
+track_formation_source: 80
+================================================================================
+
+
+Reached maximum packet limit (5). Stopping.
+
+Socket closed.
+Log ended at 2025-11-19 10:34:45
