@@ -76,10 +76,14 @@ def send_command(command_method):
         # Connect and send command
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(5.0)
-        sock.connect((HOST, COMMAND_PORT))
         
+        log_print(f"Connecting to {HOST}:{COMMAND_PORT}...", console=True, file_handle=command_log_file)
+        sock.connect((HOST, COMMAND_PORT))
+        log_print(f"Connected successfully", console=True, file_handle=command_log_file)
+        
+        log_print(f"Sending {len(command_bytes)} bytes: {command_bytes}", console=True, file_handle=command_log_file)
         sock.sendall(command_bytes)
-        log_print(f"Command sent to {HOST}:{COMMAND_PORT}", console=True, file_handle=command_log_file)
+        log_print(f"Command sent successfully to {HOST}:{COMMAND_PORT}", console=True, file_handle=command_log_file)
         
         # Wait for response
         try:
@@ -711,9 +715,90 @@ def decode_track_packet(data, file_handle=None):
 def connect_and_receive():
     global track_log_file, status_log_file
     
-    # Send startup command to power on the radar
-    print("Sending startup command to power on radar...")
-    send_command("mode_set_start")
+    # Monitor status and keep sending mode_set_start until ACTIVE
+    print("Monitoring radar status and sending mode_set_start commands...")
+    import time
+    
+    # Create a flag to track if we should keep sending commands
+    keep_sending = threading.Event()
+    keep_sending.set()
+    
+    def command_sender():
+        """Thread to continuously send mode_set_start when radar is IDLE"""
+        while keep_sending.is_set() and not shutdown_flag.is_set():
+            send_command("mode_set_start")
+            time.sleep(5)  # Wait 5 seconds between commands
+    
+    def status_monitor():
+        """Thread to monitor status and stop commands when ACTIVE"""
+        global status_log_file
+        buffer = b''
+        
+        try:
+            status_log_file = open(status_log_filename, 'w', encoding='utf-8')
+            log_print(f"Status Data Log - Started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", console=True, file_handle=status_log_file)
+            log_print(f"Connecting to {HOST}:{STATUS_PORT}...", console=True, file_handle=status_log_file)
+            log_print("="*60 + "\n", console=True, file_handle=status_log_file)
+            
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(30.0)
+            sock.connect((HOST, STATUS_PORT))
+            
+            log_print("Status connection successful!", console=True, file_handle=status_log_file)
+            log_print("Receiving and decoding status data...\n", console=True, file_handle=status_log_file)
+            
+            while not shutdown_flag.is_set():
+                try:
+                    data = sock.recv(4096)
+                except socket.timeout:
+                    continue
+                    
+                if not data:
+                    log_print("\nStatus connection closed by remote host.", console=True, file_handle=status_log_file)
+                    break
+                
+                buffer += data
+                
+                # Check if radar is ACTIVE
+                if b'Operation:ACTIVE' in data:
+                    print("\n*** Radar is now ACTIVE! Stopping mode_set_start commands. ***\n")
+                    keep_sending.clear()  # Stop sending commands
+                elif b'Operation:IDLE' in data:
+                    if not keep_sending.is_set():
+                        print("\n*** Radar back to IDLE! Resuming mode_set_start commands. ***\n")
+                        keep_sending.set()  # Resume sending commands
+                
+                while b'<status>' in buffer:
+                    start_idx = buffer.find(b'<status>')
+                    next_start = buffer.find(b'<status>', start_idx + 8)
+                    
+                    if next_start == -1:
+                        break
+                    
+                    packet = buffer[start_idx:next_start]
+                    buffer = buffer[next_start:]
+                    
+                    decode_status_packet(packet, status_log_file)
+                        
+        except socket.timeout:
+            log_print("Status connection timed out.", console=True, file_handle=status_log_file)
+        except ConnectionRefusedError:
+            log_print("Status connection refused.", console=True, file_handle=status_log_file)
+        except KeyboardInterrupt:
+            log_print("\nStatus connection interrupted by user.", console=True, file_handle=status_log_file)
+        except Exception as e:
+            log_print(f"Status error: {e}", console=True, file_handle=status_log_file)
+        finally:
+            try:
+                sock.close()
+            except:
+                pass
+            log_print(f"\nStatus socket closed.", console=True, file_handle=status_log_file)
+            log_print(f"Log ended at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", console=True, file_handle=status_log_file)
+            if status_log_file:
+                status_log_file.close()
+                print(f"\nStatus log saved to: {status_log_filename}")
+    
     print()
     
     def receive_track_data():
@@ -782,92 +867,40 @@ def connect_and_receive():
                 track_log_file.close()
                 print(f"\nTrack log saved to: {track_log_filename}")
     
-    def receive_status_data():
-        """Thread function to receive status packets"""
-        global status_log_file
-        buffer = b''
-        
-        try:
-            status_log_file = open(status_log_filename, 'w', encoding='utf-8')
-            log_print(f"Status Data Log - Started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", console=True, file_handle=status_log_file)
-            log_print(f"Connecting to {HOST}:{STATUS_PORT}...", console=True, file_handle=status_log_file)
-            log_print("="*60 + "\n", console=True, file_handle=status_log_file)
-            
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(30.0)  # 30 second timeout
-            sock.connect((HOST, STATUS_PORT))
-            
-            log_print("Status connection successful!", console=True, file_handle=status_log_file)
-            log_print("Receiving and decoding status data...\n", console=True, file_handle=status_log_file)
-            
-            while not shutdown_flag.is_set():
-                try:
-                    data = sock.recv(4096)
-                except socket.timeout:
-                    continue
-                    
-                if not data:
-                    log_print("\nStatus connection closed by remote host.", console=True, file_handle=status_log_file)
-                    break
-                
-                buffer += data
-                
-                while b'<status>' in buffer:
-                    start_idx = buffer.find(b'<status>')
-                    next_start = buffer.find(b'<status>', start_idx + 8)
-                    
-                    if next_start == -1:
-                        break
-                    
-                    packet = buffer[start_idx:next_start]
-                    buffer = buffer[next_start:]
-                    
-                    decode_status_packet(packet, status_log_file)
-                        
-        except socket.timeout:
-            log_print("Status connection timed out.", console=True, file_handle=status_log_file)
-        except ConnectionRefusedError:
-            log_print("Status connection refused.", console=True, file_handle=status_log_file)
-        except KeyboardInterrupt:
-            log_print("\nStatus connection interrupted by user.", console=True, file_handle=status_log_file)
-        except Exception as e:
-            log_print(f"Status error: {e}", console=True, file_handle=status_log_file)
-        finally:
-            try:
-                sock.close()
-            except:
-                pass
-            log_print(f"\nStatus socket closed.", console=True, file_handle=status_log_file)
-            log_print(f"Log ended at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", console=True, file_handle=status_log_file)
-            if status_log_file:
-                status_log_file.close()
-                print(f"\nStatus log saved to: {status_log_filename}")
-    
-    # Create and start both threads
+    # Create and start threads
+    command_thread = threading.Thread(target=command_sender, daemon=True)
+    status_thread = threading.Thread(target=status_monitor, daemon=True)
     track_thread = threading.Thread(target=receive_track_data, daemon=True)
-    status_thread = threading.Thread(target=receive_status_data, daemon=True)
     
     # Signal handler for Ctrl+C
     def signal_handler(sig, frame):
         print("\n\nInterrupted by user. Shutting down...")
         shutdown_flag.set()
+        keep_sending.clear()
         sys.exit(0)
     
     signal.signal(signal.SIGINT, signal_handler)
     
-    track_thread.start()
-    status_thread.start()
+    # Start command sender first
+    command_thread.start()
+    time.sleep(1)  # Give it a moment to send first command
     
-    # Wait for both threads to complete or shutdown signal
+    # Then start monitoring threads
+    status_thread.start()
+    track_thread.start()
+    
+    # Wait for threads to complete or shutdown signal
     try:
-        while track_thread.is_alive() or status_thread.is_alive():
-            track_thread.join(timeout=0.5)
+        while command_thread.is_alive() or status_thread.is_alive() or track_thread.is_alive():
+            command_thread.join(timeout=0.5)
             status_thread.join(timeout=0.5)
+            track_thread.join(timeout=0.5)
             if shutdown_flag.is_set():
                 break
     except KeyboardInterrupt:
         print("\n\nInterrupted by user. Shutting down...")
         shutdown_flag.set()
+        keep_sending.clear()
 
 if __name__ == "__main__":
     connect_and_receive()
