@@ -892,7 +892,7 @@ def set_radar_kinematics(ins_data):
         return False
 
 def connect_and_receive():
-    global track_log_file, status_log_file
+    global track_log_file, status_log_file, command_id
     
     # Get INS data and set radar kinematics before starting
     print("Getting INS data...")
@@ -913,10 +913,21 @@ def connect_and_receive():
     max_attempts = 30
     attempt = 0
     radar_active = False
+    first_check = True
     
     while attempt < max_attempts and not radar_active:
         attempt += 1
         
+        # For first attempt, always send mode_set_start with id=1
+        # Then check if it becomes ACTIVE
+        if first_check:
+            print(f"Attempt {attempt}: Sending initial mode_set_start command...")
+            # Reset command_id to ensure mode_set_start gets id=1
+            command_id = 1
+            send_command("mode_set_start")
+            first_check = False
+            time.sleep(2)
+            
         # Query current radar mode
         current_mode = get_radar_mode()
         
@@ -924,7 +935,7 @@ def connect_and_receive():
             print(f"Attempt {attempt}: Current radar mode: {current_mode}")
             
             if "ACTIVE" in current_mode:
-                print("Radar is already ACTIVE!")
+                print("Radar is now ACTIVE!")
                 radar_active = True
                 break
             elif "IDLE" in current_mode:
